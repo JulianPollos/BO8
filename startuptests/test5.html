@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Quiz App</title>
+  <!-- MediaPipe Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; font-family:sans-serif; background:#111; color:#fff; }
+    .camera-section { position:relative; width:100%; height:70vh; overflow:hidden; }
+    video.flip, canvas { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; }
+    video.flip { transform:scaleX(-1); }
+    canvas { pointer-events:none; z-index:2; }
+    .camera-selector { position:absolute; top:10px; left:10px; z-index:5; }
+    .camera-selector select { font-size:1rem; padding:0.3rem; }
+    .words { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+    .words span {
+      position:absolute;
+      font-size:2rem;
+      font-weight:bold;
+      color:#fff;
+      text-shadow:0 0 10px rgba(0,0,0,0.8);
+      transition:transform 5s ease-in-out, font-size .3s ease-out, text-shadow .2s ease-out;
+      will-change:transform,font-size,text-shadow;
+      z-index:3;
+    }
+    .quiz-section { height:30vh; background:#fafbfc; display:grid; grid-template-rows:auto 1fr; gap:10px; }
+    .quiz-section .question { margin:10px; font-size:1.8rem; color:#333; text-align:center; }
+    .quiz-section .answers { display:grid; grid:repeat(2,1fr)/repeat(2,1fr); }
+    .quiz-section .answer { display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:bold; color:#fff; border:none; cursor:pointer; transition:transform .1s,opacity .2s; }
+    .answer[data-color="green"]  { background:#4cd964; }
+    .answer[data-color="red"]    { background:#ff3b30; }
+    .answer[data-color="blue"]   { background:#007aff; }
+    .answer[data-color="yellow"] { background:#ffcc00; }
+    .answer:hover { opacity:.85; }
+    .answer:active { transform:scale(.97); }
+    .loading { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:1.2rem; z-index:10; }
+   
+    /* Fullscreen button style */
+    .fullscreen-btn {
+      position:absolute; top:10px; right:10px; z-index:5;
+      background:#007aff; color:#fff; border:none; padding:8px 12px;
+      border-radius:5px; cursor:pointer; font-size:0.9rem;
+    }
+    .fullscreen-btn:hover { background:#0056b3; }
+  </style>
+</head>
+<body>
+  <div class="camera-section">
+    <div class="camera-selector">
+      <label for="cameraSelect">Kies camera:</label>
+      <select id="cameraSelect"></select>
+    </div>
+    <button class="fullscreen-btn" id="fullscreenBtn">Fullscreen (F11)</button>
+    <video id="camera" class="flip" autoplay muted playsinline></video>
+    <canvas id="handCanvas"></canvas>
+    <div class="loading" id="loading">Loading hand tracking…</div>
+    <div class="words"></div>
+  </div>
+  <div class="quiz-section">
+    <h2 class="question"></h2>
+    <div class="answers"></div>
+  </div>
+ 
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Auto-fullscreen function
+      function requestFullscreen() {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+          elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+          elem.msRequestFullscreen();
+        }
+      }
+ 
+      // Fullscreen button handler
+      const fullscreenBtn = document.getElementById('fullscreenBtn');
+      fullscreenBtn.addEventListener('click', requestFullscreen);
+ 
+      // Auto-request fullscreen after a short delay (optional)
+      setTimeout(() => {
+        // Uncomment the next line if you want automatic fullscreen on load
+        // requestFullscreen();
+      }, 1000);
+ 
+      // Handle fullscreen changes
+      document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) {
+          fullscreenBtn.textContent = 'Exit Fullscreen (ESC)';
+        } else {
+          fullscreenBtn.textContent = 'Fullscreen (F11)';
+        }
+      });
+ 
+      // F11 key handler for manual fullscreen toggle
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+          e.preventDefault();
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          } else {
+            requestFullscreen();
+          }
+        }
+      });
+ 
+      // ===== Quiz Logic =====
+      const quizData = [
+        { question: 'Wat is 4 + 2?', answers: ['3','4','5','6'], correct:1, words:['Goed!','4 is juist!','Volgende..?'] },
+        { question: 'Wat is de hoofdstad van Nederland?', answers: ['Rotterdam','Utrecht','Amsterdam','Den Haag'], correct:2, words:['Klop!','Amsterdam','Verder'] },
+        { question: 'Welke kleur krijg je door rood en blauw te mengen?', answers: ['Paars','Groen','Oranje','Geel'], correct:0, words:['Top!','Paars','Klaar!'] }
+      ];
+      let currentIndex = 0;
+      const questionEl = document.querySelector('.quiz-section .question');
+      const answersEl  = document.querySelector('.quiz-section .answers');
+      const wordsEl    = document.querySelector('.words');
+ 
+      function moveWord(span) {
+        const vb = video.getBoundingClientRect();
+        const wr = span.getBoundingClientRect();
+        const x  = Math.random()*(vb.width-wr.width);
+        const y  = Math.random()*(vb.height-wr.height);
+        span.style.transform = `translate(${x}px,${y}px)`;
+      }
+ 
+      function renderWords(list) {
+        wordsEl.innerHTML = '';
+        list.forEach(text => {
+          const span = document.createElement('span');
+          span.textContent = text;
+          wordsEl.appendChild(span);
+          setTimeout(()=>moveWord(span), Math.random()*1000);
+          setInterval(()=>moveWord(span), 4000+Math.random()*2000);
+        });
+      }
+ 
+      function loadQuestion() {
+        const q = quizData[currentIndex];
+        questionEl.textContent = q.question;
+        answersEl.innerHTML = '';
+        q.answers.forEach((ans, i) => {
+          const btn = document.createElement('button');
+          btn.textContent = ans;
+          btn.className   = 'answer';
+          btn.dataset.color = ['green','red','blue','yellow'][i];
+          btn.addEventListener('click', ()=>checkAnswer(i));
+          answersEl.appendChild(btn);
+        });
+        renderWords(q.words);
+      }
+ 
+      function checkAnswer(i) {
+        const q = quizData[currentIndex];
+        if(i===q.correct) {
+          currentIndex++;
+          if(currentIndex<quizData.length) loadQuestion();
+          else {
+            questionEl.textContent = 'Quiz voltooid!';
+            answersEl.innerHTML = '';
+            renderWords(['Einde','Bedankt!']);
+          }
+        } else {
+          renderWords(['Helaas…','Probeer opnieuw']);
+        }
+      }
+ 
+      loadQuestion();
+ 
+      // ===== MediaPipe & Camera Setup =====
+      const video  = document.getElementById('camera');
+      const canvas = document.getElementById('handCanvas');
+      const select = document.getElementById('cameraSelect');
+      const loading = document.getElementById('loading');
+      const ctx    = canvas.getContext('2d');
+      let hands, cameraUtil, currentFontSize=2, lastTime=0;
+ 
+      function hideLoading() { loading.style.display='none'; }
+      function resizeCanvas() { canvas.width=video.videoWidth; canvas.height=video.videoHeight; }
+ 
+      function onHandResults(results) {
+        const now = performance.now();
+        if(now-lastTime<33) return;
+        lastTime = now;
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+ 
+        const cw=canvas.width, ch=canvas.height;
+        let fingerPos=null;
+        if(results.multiHandLandmarks?.length) {
+          const lm = results.multiHandLandmarks[0];
+          const d = Math.hypot(lm[4].x-lm[8].x, lm[4].y-lm[8].y);
+          const ns = Math.min(1,Math.max(0,(d-0.02)/0.13));
+          // Fixed: Better size scaling - minimum size of 1.5rem instead of 0.5rem
+          const newSize = 1.5+ns*2.5;
+          if(Math.abs(newSize-currentFontSize)>0.05) {  
+            currentFontSize=newSize;
+            wordsEl.querySelectorAll('span').forEach(w=>w.style.fontSize=`${newSize}rem`);
+          }
+ 
+          // Fixed: Mirror dots to match flipped camera
+          lm.forEach((pt,i)=>{
+            const dx = (1-pt.x) * cw;  // Mirror x-coordinate
+            const dy = pt.y * ch;
+            ctx.fillStyle = i===4?'red':'blue';
+            ctx.beginPath(); ctx.arc(dx,dy,5,0,2*Math.PI); ctx.fill();
+          });
+ 
+          // Add line between thumb and index finger (also mirrored)
+          ctx.strokeStyle='yellow';
+          ctx.lineWidth=2;
+          ctx.beginPath();
+          ctx.moveTo((1-lm[4].x)*cw, lm[4].y*ch);
+          ctx.lineTo((1-lm[8].x)*cw, lm[8].y*ch);
+          ctx.stroke();
+ 
+          const tip = lm[8];
+          fingerPos = { x: (1-tip.x)*cw, y: tip.y*ch };  // Mirror finger position too
+        }
+ 
+        if(fingerPos) {
+          const vb=video.getBoundingClientRect(); let best=Infinity, close=null;
+          wordsEl.querySelectorAll('span').forEach(w=>{
+            const wr=w.getBoundingClientRect();
+            const wx=wr.left+wr.width/2-vb.left;
+            const wy=wr.top+wr.height/2-vb.top;
+            const fx=fingerPos.x/cw*vb.width;
+            const fy=fingerPos.y/ch*vb.height;
+            const dist=Math.hypot(fx-wx,fy-wy);
+            if(dist<best){best=dist;close=w;}
+          });
+         
+          // Reset all text shadows
+          wordsEl.querySelectorAll('span').forEach(w=>{
+            w.style.textShadow='0 0 10px rgba(0,0,0,0.8)';
+            w.style.filter='none';
+          });
+         
+          // Epic glowing effect with rainbow colors and animations
+          const R=150;
+          if(close && best<=R) {
+            const intensity=1-best/R;
+            const time = Date.now() * 0.005; // Time for color cycling
+           
+            // Create rainbow color cycling
+            const hue1 = (time + intensity * 50) % 360;
+            const hue2 = (time + intensity * 50 + 120) % 360;
+            const hue3 = (time + intensity * 50 + 240) % 360;
+           
+            // Multiple blur layers with different intensities
+            const blur1=15+intensity*25;
+            const blur2=8+intensity*35;
+            const blur3=3+intensity*45;
+            const blur4=1+intensity*55;
+           
+            const alpha1=0.7+intensity*0.3;
+            const alpha2=0.5+intensity*0.5;
+            const alpha3=0.3+intensity*0.7;
+            const alpha4=0.1+intensity*0.9;
+           
+            // Pulsing effect
+            const pulse = 0.8 + 0.2 * Math.sin(time * 3);
+            const scale = 1 + intensity * 0.1 * Math.sin(time * 4);
+           
+            close.style.textShadow=`
+              0 0 ${blur1*pulse}px hsla(${hue1}, 100%, 50%, ${alpha1}),
+              0 0 ${blur2*pulse}px hsla(${hue2}, 100%, 60%, ${alpha2}),
+              0 0 ${blur3*pulse}px hsla(${hue3}, 100%, 70%, ${alpha3}),
+              0 0 ${blur4*pulse}px hsla(${(hue1+180)%360}, 100%, 80%, ${alpha4}),
+              0 ${Math.sin(time*2)*2}px ${blur1*0.5}px hsla(${hue1}, 100%, 40%, 0.4),
+              ${Math.cos(time*2.5)*2}px 0 ${blur2*0.5}px hsla(${hue2}, 100%, 40%, 0.4),
+              0 0 10px rgba(0,0,0,0.8)
+            `;
+           
+            // Add subtle transform effects
+            close.style.transform += ` scale(${scale})`;
+            close.style.filter = `
+              brightness(${1.2 + intensity * 0.3})
+              contrast(${1.1 + intensity * 0.2})
+              saturate(${1.3 + intensity * 0.4})
+              drop-shadow(0 0 ${10*intensity}px hsla(${hue1}, 100%, 50%, 0.6))
+            `;
+          }
+        }
+      }
+ 
+      async function startCamera(deviceId) {
+        loading.textContent='Initializing…'; cameraUtil?.stop();
+        video.srcObject?.getTracks().forEach(t=>t.stop());
+        const constraints={ video:{width:1280,height:720} };
+        if(deviceId) constraints.video.deviceId={exact:deviceId};
+        const stream=await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject=stream;
+ 
+        hands=new Hands({ locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+        hands.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+        hands.onResults(onHandResults);
+ 
+        await Promise.all([
+          new Promise(r=>{ video.onloadedmetadata=()=>{resizeCanvas();r();}; }),
+          hands.initialize()
+        ]);
+        hideLoading();
+ 
+        cameraUtil=new Camera(video,{ onFrame:async()=>await hands.send({image:video}), width:1280,height:720 });
+        cameraUtil.start();
+      }
+ 
+      async function populateCameraList() {
+        try{
+          const tmp=await navigator.mediaDevices.getUserMedia({video:true}); tmp.getTracks().forEach(t=>t.stop());
+          const cams=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+          cams.forEach((c,i)=>{ const o=document.createElement('option'); o.value=c.deviceId; o.text=c.label||`Camera ${i+1}`; select.appendChild(o); });
+          if(cams.length){ select.value=cams[0].deviceId; await startCamera(cams[0].deviceId); }
+        } catch(e){ console.error(e); }
+      }
+      select.addEventListener('change',()=>startCamera(select.value));
+      populateCameraList();
+    });
+  </script>
+ 
+</body>
+</html>
