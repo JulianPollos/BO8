@@ -4,8 +4,9 @@ sleep 3
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> bootlog.txt
 }
+
 # change dir
-cd /c/Users/Julian/Downloads/startuptests || exit
+cd /c/Users/Techlab/Documents/SD2D/BO8/startuptests || exit
 
 log "Killing any existing Chrome instances..."
 taskkill //F //IM chrome.exe 2>/dev/null || true
@@ -47,7 +48,7 @@ wait $PYTHON_SERVER_PID
 # reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v StartMySite /f
 
 # install reg (check dir)
-# reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v StartMySite /t REG_SZ /d "\"C:\Program Files\Git\bin\bash.exe\" --login -c '/c/Users/Julian/Documents/MA/BO8/startuptests/start-my-site.sh'" /f
+# reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v StartMySite /t REG_SZ /d "\"C:\Program Files\Git\bin\bash.exe\" --login -c '/c/Users/Techlab/Documents/SD2D/BO8/startuptests/start-my-site.sh'" /f
 
 # search for reg
 # reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run
