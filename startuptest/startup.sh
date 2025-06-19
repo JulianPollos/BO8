@@ -50,3 +50,6 @@ wait $PYTHON_SERVER_PID
 
 # Add startup reg key (make sure path matches this script
 # reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v StartMySite /t REG_SZ /d "\"C:\\Program Files\\Git\\bin\\bash.exe\" \"C:/Users/Julian/Documents/MA/BO8/startuptest/startup.sh\"" /f
+
+
+# shortcut "C:\Program Files\Git\bin\bash.exe" "C:/Users/Julian/Documents/MA/BO8/startuptest/startup.sh"
