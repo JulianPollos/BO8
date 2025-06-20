@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#"C:\Program Files\Git\git-bash.exe" --login -i "C:\Users\GA Mini 2\Documents\SD2D\BO8\startuptest\startup.sh"
+
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> bootlog.txt
 }
