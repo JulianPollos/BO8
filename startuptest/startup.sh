@@ -5,7 +5,7 @@ log() {
 }
 
 # Change to working directory
-cd "C:/Users/Julian/Documents/MA/BO8/startuptest" || exit
+cd "/c/Users/Julian/Documents/MA/BO8/startuptest" || exit
 
 log "Killing any existing Chrome instances..."
 taskkill /F /IM chrome.exe 2>/dev/null || true
