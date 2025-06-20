@@ -6,8 +6,10 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> bootlog.txt
 }
 
-# Change to working directory
-cd "/c/Users/Julian/Documents/MA/BO8/startuptest" || exit
+# Change to the directory where this script is located
+cd "$(dirname "$0")" || exit
+
+log "========== Script started =========="
 
 log "Killing any existing Chrome instances..."
 taskkill /F /IM chrome.exe 2>/dev/null || true
@@ -45,13 +47,7 @@ log "Startup sequence complete. Waiting for user to stop..."
 # Wait for Python HTTP server to end (Ctrl+C)
 wait $PYTHON_SERVER_PID
 
-# Optional: Registry startup management (commented out)
+log "========== Script ended =========="
 
-# Delete existing reg key
-# reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v StartMySite /f
-
-# Add startup reg key (make sure path matches this script
-# reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v StartMySite /t REG_SZ /d "\"C:\\Program Files\\Git\\bin\\bash.exe\" \"C:/Users/Julian/Documents/MA/BO8/startuptest/startup.sh\"" /f
-
-
-# shortcut "C:\Program Files\Git\bin\bash.exe" "C:/Users/Julian/Documents/MA/BO8/startuptest/startup.sh"
+# Optional: Keep window open for debug
+read -p "Press Enter to close this window..."
