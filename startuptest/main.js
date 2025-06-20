@@ -29,6 +29,25 @@ document.addEventListener('DOMContentLoaded', () => {
     wordAnimator.updateFontSize(fontSize);
   });
 
+  // Connect gesture detection to quiz answers
+  handTracker.setOnGestureDetectedCallback((gestureIndex, confidence) => {
+    console.log('Gesture detected:', gestureIndex, 'with confidence:', confidence);
+    
+    // Find the answer button that corresponds to this gesture
+    const answerButtons = document.querySelectorAll('.quiz-section .answer');
+    
+    if (answerButtons[gestureIndex]) {
+      // Simulate a click on the corresponding answer button
+      answerButtons[gestureIndex].click();
+      
+      // Reset inactivity timer since user interacted
+      resetInactivityTimer();
+      
+      // Visual feedback that gesture was recognized
+      console.log(`Gesture ${gestureIndex + 1} triggered answer ${gestureIndex + 1}`);
+    }
+  });
+
   quizManager.setOnUserInteractionCallback(() => {
     resetInactivityTimer();
   });

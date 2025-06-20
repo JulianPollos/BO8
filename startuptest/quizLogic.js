@@ -32,6 +32,9 @@ class QuizManager {
     
     this.onUserInteractionCallback = null;
     this.onQuizCompleteCallback = null;
+
+    // Finger emoji's voor elke button
+    this.fingerEmojis = ['☝️', '✌️', '🤟', '🖐️'];
   }
 
   // Set callback for user interactions (for inactivity timer)
@@ -61,7 +64,10 @@ class QuizManager {
     // Create answers with staggered animation
     q.answers.forEach((ans, i) => {
       const btn = document.createElement('button');
-      btn.textContent = ans;
+      
+      // Add finger emoji + answer text
+      btn.innerHTML = `<span class="finger-emoji">${this.fingerEmojis[i]}</span><span class="answer-text">${ans}</span>`;
+      
       btn.className = 'answer';
       btn.dataset.color = ['green','red','blue','yellow'][i];
       btn.style.opacity = '0';
@@ -234,7 +240,7 @@ class QuizManager {
     setTimeout(() => {
       this.answersEl.innerHTML = '';
       const restartBtn = document.createElement('button');
-      restartBtn.textContent = '🔄 Opnieuw Starten';
+      restartBtn.innerHTML = '<span class="finger-emoji">🔄</span><span class="answer-text">Opnieuw Starten</span>';
       restartBtn.className = 'answer restart-button';
       restartBtn.dataset.color = 'green';
       restartBtn.style.gridColumn = '1 / -1';
